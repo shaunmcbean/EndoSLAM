@@ -26,15 +26,23 @@ Trains a self-supervised monocular depth estimation model using endoscopic RGB v
 **Arguments:**
 
 *--``image_dir``: Path to RGB training images.
+
 *--``depth_dir``: Path to corresponding ground-truth depth charts (optional, for validation).
+
 *--``epochs``: Number of training epochs.
+
 *--``batch_size``: Number of images per batch.
 
 **Functionality:**
 
 *Loads image and depth data.
+
 *Builds and trains a convolutional neural network to predict per-pixel depth.
+
 *Implements self-supervised loss functions:
+
 *Photometric loss between adjacent frames.
+
 *Smoothness loss to regularize depth output.
+
 *Saves model checkpoints during training.
