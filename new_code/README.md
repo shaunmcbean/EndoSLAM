@@ -46,3 +46,32 @@ Trains a self-supervised monocular depth estimation model using endoscopic RGB v
 * Smoothness loss to regularize depth output.
 
 * Saves model checkpoints during training.
+
+### 📄 eval_model.py
+Evaluates a trained depth estimation model and saves predicted depth maps.
+
+**Arguments:**
+
+* ``--model_path``: Path to the saved model checkpoint (.pth file).
+
+* ``--image_dir``: Directory of RGB evaluation images.
+
+* ``--depth_dir``: Directory of ground-truth depth maps for evaluation.
+
+* ``--output_dir``: Destination folder for saving predicted depth images and plots.
+
+**Functionality:**
+
+* Loads a pretrained model.
+
+* Performs forward passes on evaluation images.
+
+* Compares predictions to ground truth using common metrics:
+
+  * RMSE
+
+  * Abs Rel
+
+  * Sq Rel
+
+* Saves output depth maps for visualization and analysis.
