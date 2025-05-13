@@ -77,11 +77,12 @@ Evaluates a trained depth estimation model and saves predicted depth maps.
 * Saves output depth maps for visualization and analysis.
 
 ## Data Examples
-** Example RGB Image **
+**Example RGB Image**
 
 ![Alt text](data/rgb_image_example.png)
 
-** Example Depth Chart Image **
+**Example Depth Chart Image**
 
 ![Alt text](data/depth_chart_example.png)
+
 
