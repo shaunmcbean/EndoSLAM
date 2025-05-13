@@ -16,3 +16,4 @@ python3 eval_model.py \
   --image_dir [PATH TO RGB EVAL IMAGES] \
   --depth_dir [PATH TO EVAL DEPTH CHART IMAGES] \
   --output_dir [PATH TO RESULTS DIRECTORY]
+'''
