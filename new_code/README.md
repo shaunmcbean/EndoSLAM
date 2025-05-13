@@ -29,9 +29,9 @@ Trains a self-supervised monocular depth estimation model using endoscopic RGB v
 
 --``depth_dir``: Path to corresponding ground-truth depth charts (optional, for validation).
 
---epochs: Number of training epochs.
+--``epochs``: Number of training epochs.
 
---batch_size: Number of images per batch.
+--``batch_size``: Number of images per batch.
 
 **Functionality:**
 
