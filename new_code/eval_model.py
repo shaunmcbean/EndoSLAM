@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage.metrics import structural_similarity as ssim
 
+
 # --- Model (same as training) ---
 class DepthEstimationNet(torch.nn.Module):
     def __init__(self):
@@ -51,6 +52,9 @@ class EndoscopyDepthDataset(Dataset):
         if self.transform:
             image = self.transform(image)
             depth = self.transform(depth)
+        
+        # Normalize depth to [0, 1]
+        depth = depth / depth.max()
 
         return image, depth
 
@@ -72,15 +76,23 @@ def compute_metrics(pred, target):
 def save_heatmap(pred, target, idx, output_dir):
     pred = pred.squeeze().cpu().numpy()
     target = target.squeeze().cpu().numpy()
+    
+    # Compute absolute error map
+    abs_error = np.abs(pred - target)
+    
+    fig, axs = plt.subplots(1, 3, figsize=(15, 4))
 
-    fig, axs = plt.subplots(1, 2, figsize=(10, 4))
     axs[0].imshow(pred, cmap='inferno')
     axs[0].set_title("Predicted Depth")
     axs[0].axis('off')
 
     axs[1].imshow(target, cmap='inferno')
-    axs[1].set_title("Ground Truth")
+    axs[1].set_title("Ground Truth Depth")
     axs[1].axis('off')
+
+    axs[2].imshow(abs_error, cmap='viridis')
+    axs[2].set_title("Absolute Error Map")
+    axs[2].axis('off')
 
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, f"heatmap_{idx:03d}.png"))
@@ -112,6 +124,8 @@ def evaluate(model_path, image_dir, depth_dir, output_dir):
 
         with torch.no_grad():
             pred_depth = model(img)
+        
+        pred_depth = pred_depth * gt_depth.max()
 
         mse, mae, rmse, ssim_val = compute_metrics(pred_depth, gt_depth)
         all_metrics.append((mse, mae, rmse, ssim_val))
