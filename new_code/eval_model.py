@@ -126,6 +126,11 @@ def evaluate(model_path, image_dir, depth_dir, output_dir):
             pred_depth = model(img)
         
         pred_depth = pred_depth * gt_depth.max()
+        pred_depth_np = pred_depth.squeeze().cpu().numpy()
+
+        raw_depth_output_path = os.path.join(output_dir, 'output_raw', f"raw_depth_{idx:03d}.npy")
+
+        np.save(raw_depth_output_path, pred_depth_np)
 
         mse, mae, rmse, ssim_val = compute_metrics(pred_depth, gt_depth)
         all_metrics.append((mse, mae, rmse, ssim_val))
