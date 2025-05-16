@@ -6,17 +6,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as T
-
-import numpy as np
-
 import torchvision.models as models
-from pytorch_msssim import SSIM  # pip install pytorch-msssim
+import numpy as np
+from pytorch_msssim import SSIM  # pip3 install pytorch-msssim
 
 ssim_loss = SSIM(data_range=1.0, size_average=True, channel=1)
 
-# --------------------------
-# Dataset Definition
-# --------------------------
 class EndoscopyDepthDataset(Dataset):
     def __init__(self, image_dir, depth_dir, transform=None):
         self.image_paths = sorted([
@@ -35,33 +30,32 @@ class EndoscopyDepthDataset(Dataset):
     def __getitem__(self, idx):
         image = Image.open(self.image_paths[idx]).convert("RGB")
         depth = Image.open(self.depth_paths[idx]).convert("L")
-        
 
         if self.transform:
             image = self.transform(image)
             depth = self.transform(depth)
 
-        # Normalize depth to [0, 1]
-        depth = depth / depth.max()
+        depth = depth / (depth.max() + 1e-8)
 
         return image, depth
 
-
-# --------------------------
-# Model Definition
-# --------------------------
+# resent 18 + upsampling decoder
 class DepthEstimationNet(nn.Module):
     def __init__(self):
         super().__init__()
-        self.encoder = nn.Sequential(
-            nn.Conv2d(3, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2)
-        )
+        resnet = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+        self.encoder = nn.Sequential(*list(resnet.children())[:-2])
+
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(128, 64, 2, stride=2), nn.ReLU(),
-            nn.ConvTranspose2d(64, 32, 2, stride=2), nn.ReLU(),
-            nn.ConvTranspose2d(32, 1, 2, stride=2)
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            nn.Conv2d(512, 256, 3, padding=1), nn.ReLU(),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            nn.Conv2d(256, 128, 3, padding=1), nn.ReLU(),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            nn.Conv2d(128, 64, 3, padding=1), nn.ReLU(),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            nn.Conv2d(64, 1, 3, padding=1),
+            nn.Sigmoid()
         )
 
     def forward(self, x):
@@ -69,11 +63,7 @@ class DepthEstimationNet(nn.Module):
         x = self.decoder(x)
         return x
 
-
-# --------------------------
-# Training Function
-# --------------------------
-
+# our combined loss function
 def gradient_loss(pred, target):
     def gradient(x):
         D_dx = x[:, :, :, :-1] - x[:, :, :, 1:]
@@ -84,31 +74,41 @@ def gradient_loss(pred, target):
     target_dx, target_dy = gradient(target)
     return F.l1_loss(pred_dx, target_dx) + F.l1_loss(pred_dy, target_dy)
 
-
 def combined_loss(pred, target):
+    target = F.interpolate(target, size=pred.shape[2:], mode='bilinear', align_corners=False)
     mse = F.mse_loss(pred, target)
-    ssim = 1 - ssim_loss(pred, target)  # SSIM is similarity, so 1 - SSIM is a loss
+    ssim = 1 - ssim_loss(pred, target)
     grad_loss = gradient_loss(pred, target)
-    return mse + 0.05 * ssim + 0.1 * grad_loss
+    return mse + 0.05 * ssim + 0.2 * grad_loss
 
+# training function
 def train(image_dir, depth_dir, epochs, batch_size, lr=1e-4):
     transform = T.Compose([
-        T.Resize((128, 128)),
+        T.Resize((256, 256)),
         T.ToTensor()
     ])
 
     dataset = EndoscopyDepthDataset(image_dir, depth_dir, transform)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    dataloader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=4,
+        pin_memory=True
+    )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = DepthEstimationNet().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    # criterion = nn.MSELoss()
     criterion = combined_loss
+
+    print(f"[INFO] Starting training on {len(dataset)} samples")
 
     for epoch in range(epochs):
         total_loss = 0
-        for img, depth in dataloader:
+        model.train()
+
+        for i, (img, depth) in enumerate(dataloader):
             img, depth = img.to(device), depth.to(device)
 
             optimizer.zero_grad()
@@ -119,15 +119,14 @@ def train(image_dir, depth_dir, epochs, batch_size, lr=1e-4):
 
             total_loss += loss.item()
 
-        print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss:.4f}")
+            if i % 100 == 0:
+                print(f"[DEBUG] Batch {i}, Loss: {loss.item():.6f}, Pred range: {output.min().item():.2f}–{output.max().item():.2f}")
+
+        print(f"Epoch {epoch+1}/{epochs}, Avg Loss: {total_loss / len(dataloader):.4f}")
 
     torch.save(model.state_dict(), "depth_estimation_model.pth")
-    print("Training complete. Model saved as 'depth_estimation_model.pth'")
+    print("✅ Training complete. Model saved as 'depth_estimation_model.pth'")
 
-
-# --------------------------
-# Command-Line Interface
-# --------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a depth estimation model for endoscopy images")
     parser.add_argument("--image_dir", type=str, required=True, help="Directory containing RGB endoscopy images")
