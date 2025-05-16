@@ -7,3 +7,6 @@ tensorboardX
 blessings
 progressbar2
 path
+pytorch-msssim
+opencv-python
+open3d numpy opencv-python
