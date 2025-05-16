@@ -114,9 +114,9 @@ def create_point_cloud_from_depth(rgb_image, depth_image, camera_intrinsics, cam
         raise ValueError("RGB and depth image dimensions do not match")
 
     # adjust according to .npy depth data
-    depth_scale = 10.0
-    depth_trunc = 10.0
-
+    depth_scale = 1.0
+    depth_trunc = 1.0
+    
     rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
         rgb_o3d,
         depth_o3d,
@@ -239,7 +239,7 @@ if __name__ == "__main__":
         accumulated_point_cloud = accumulated_point_cloud.voxel_down_sample(voxel_size)
 
         # adjust nb_neighbors and std_ratio based on noise level
-        cl, ind = accumulated_point_cloud.remove_statistical_outlier(nb_neighbors=20, std_ratio=20.0)
+        cl, ind = accumulated_point_cloud.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0)
         accumulated_point_cloud = accumulated_point_cloud.select_by_index(ind)
 
     print(f"Final point cloud has {len(accumulated_point_cloud.points)} points.")
